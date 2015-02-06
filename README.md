@@ -30,8 +30,8 @@ Then define other test parameters, including the api endpoint to hit and the wai
 
         host = 'http://localhost:8000'
 
-The min/max wait times control the amount of time each simulated user waits 
-between executing tasks. Each user will execute a task at random, wait a random 
+The min/max wait times control the amount of time each simulated user waits
+between executing tasks. Each user will execute a task at random, wait a random
 amount of time between `min_wait` and `max_wait`, and then repeat.
 
 At this point, you can start locust's web server:
@@ -61,8 +61,8 @@ Each user does the following:
 
 Locust can be run in a single-master, multiple-slave configuration. The slaves
 do all the load generation, while the master controls and monitors. Every (by default)
-3 seconds, a slave sends a single report for all requests made *on that slave* 
-in the last 3 seconds. The master receives these reports from all of its slaves 
+3 seconds, a slave sends a single report for all requests made *on that slave*
+in the last 3 seconds. The master receives these reports from all of its slaves
 and consolidates them in real time.
 
 The master controls the starting and stopping of *load generation* on the slaves.
@@ -84,7 +84,7 @@ You should be able see the clients connect/disconnect in the master's logs.
 
 ##### Detecting whether you're the master or slave
 It seems normal to use the same locust file an the master and slave (I've never
-tried using a master locust file and a separat, different slave locust file. Even 
+tried using a master locust file and a separate, different slave locust file. Even
 if it works, you lose the ability to run your tests in non-distributed mode.)
 
 But sometimes I wanted to do certain things only on the master (like saving
@@ -95,17 +95,17 @@ From what I can tell, locust doesn't provide a way to detect which mode you're
 running in. What I did was check for the command line arguments:
 
     import sys
-    
+
     def is_master():
         return '--master' in sys.argv
 
     def is_slave():
         return '--slave' in sys.argv
-        
+
 ##### Grouping requests in the report
 By default, locust will use `/resources/{uuid}` as the name that shows up
 in the summary report. But if your the url has an id in it, you'll get a separate entry
-in locust's report for each id. 
+in locust's report for each id.
 
 Instead, you can provide an explicit `name` argument for Locust to use in its report:
 
@@ -138,9 +138,9 @@ For example, consider a long running task like this:
         time.sleep(60)
 
 A locust user will enter this task and sleep for 60 seconds. If you have a small
-number of users, chances are they'll all eventually get stuck sleeping in this task, 
+number of users, chances are they'll all eventually get stuck sleeping in this task,
 unable to continue executing other tasks, so your request rates will
-plummet. (Due to reasons, you should actually use gevent.sleep() instead of 
+plummet. (Due to reasons, you should actually use gevent.sleep() instead of
 time.sleep(). See the gevent docs for more.)
 
 Instead, you want the task to take as short a time as possible. To do this, you
