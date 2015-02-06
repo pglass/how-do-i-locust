@@ -61,8 +61,9 @@ Each user does the following:
 
 Locust can be run in a single-master, multiple-slave configuration. The slaves
 do all the load generation, while the master controls and monitors. Every (by default)
-3 seconds, a slave sends a single report for all requests made in the last 3 seconds. 
-The master receives these reports and aggregates them.
+3 seconds, a slave sends a single report for all requests made *on that slave* 
+in the last 3 seconds. The master receives these reports from all of its slaves 
+and consolidates them in real time.
 
 The master controls the starting and stopping of *load generation* on the slaves.
 The master cannot start/stop the locust process running on the slaves. This
