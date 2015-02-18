@@ -122,6 +122,7 @@ Locust has some nifty event hooks that let you execute a function when that even
 There are several different points at which you can do something before the test starts. Some of these are kind of non-obvious, and I ran into situations where a setup task was being run every time a new user was spawned (during rampup) instead of just when load generation started. Anyway, these are the points at which you can do something before/after your test:
 
 1. *At process startup*: You can do whatever you like in the global scope of your locust file, but this will only occur once for the entire time your locust process is running. I read config files and do other "framework" setup, like registering event handlers or preparing integration with another service.
+
         import locust
         # read the config file once, at the start of the locust process
         CONF = get_config()
@@ -131,16 +132,19 @@ There are several different points at which you can do something before the test
         class MyTasks(locust.TaskSet):
             ...
 2. *At test start*: You click the start button to start load generation You can hook into this by attaching event handlers to the  `locust.events.locust_start_hatching` event:
+
         def do_thing():
             # do a thing
         locust.events.locust_start_hatching += do_thing
 This will call `do_thing` exactly once when you press the start button. If you're running locust in master/slave mode, then `locust.events.locust_start_hatching` fires only on slaves, and `locust.events.master_start_hatching` fires only on the master.
 3. *At user spawn time*: You can do per-user setup in two places. Locust will call the `on_start` method when a Locust user is started:
+
         class MyTasks(locust.TaskSet):
             def on_start(self):
                 # Each locust user gets a different id
                 self.random_id = str(uuid.uuid4())
 Locust creates a new instance of your TaskSet class once per user, so you can also do setup in the class constructor (I think this is less preferred):
+
         class MyTasks(locust.TaskSet):
             def __init__(self, *args, **kwargs):
                 super(MyTasks, self).__init__(*args, **kwargs)
