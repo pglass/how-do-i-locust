@@ -2,8 +2,8 @@
 
 [Locust](https://locust.io/) generates load and does pretty much nothing else.
 It comes with a web server with UI controls out of the box. It can also run in
-a single-master, multiple-slave configuration in which the slaves generate load
-and the master aggregates reports from the slaves.
+a single-master, multiple-worker configuration in which the workers generate load
+and the master aggregates reports from the workers.
 
 You write a locust file, which is just regular python file
 
@@ -67,16 +67,16 @@ locust file)
 5. Repeat from 1
 
 
-### But how do I slavery??
+### But how do I use workers?
 
-Locust can be run in a single-master, multiple-slave configuration. The slaves
+Locust can be run in a single-master, multiple-worker configuration. The workers
 do all the load generation, while the master controls and monitors. Every (by
-default) 3 seconds, a slave sends a single report for all requests made *on
-that slave* in the last 3 seconds. The master receives these reports from all
-of its slaves and consolidates them in real time.
+default) 3 seconds, a worker sends a single report for all requests made *on
+that worker* in the last 3 seconds. The master receives these reports from all
+of its workers and consolidates them in real time.
 
 The master controls the starting and stopping of *load generation* on the
-slaves. The master cannot start/stop the locust process running on the slaves.
+workers. The master cannot start/stop the locust process running on the workers.
 This means you need to create servers and start locust's processes yourself.
 
 To start the master process:
@@ -85,24 +85,24 @@ To start the master process:
 $ locust -f something.py --master
 ```
 
-You must start the master process before the slaves. Then start the slaves:
+You must start the master process before the workers. Then start the workers:
 
 ```bash
-$ locust -f something.py --slave --master-host=<master-ip>
+$ locust -f something.py --worker --master-host=<master-ip>
 ```
 
 You should be able see the clients connect/disconnect in the master's logs.
 
 ### Random tips
 
-##### Detecting whether you're the master or slave
-It seems normal to use the same locust file on the master and slave (I've never
-tried using a master locust file and a separate, different slave locust file.
+##### Detecting whether you're the master or worker
+It seems normal to use the same locust file on the master and worker (I've never
+tried using a master locust file and a separate, different worker locust file.
 Even if it works, you lose the ability to run your tests in non-distributed
 mode.)
 
 But sometimes I wanted to do certain things only on the master (like saving a
-report to disk) and some things only on the slave (like doing some data prep
+report to disk) and some things only on the worker (like doing some data prep
 before starting load generation).
 
 From what I can tell, locust doesn't provide a way to detect which mode you're
@@ -114,8 +114,8 @@ import sys
 def is_master():
     return '--master' in sys.argv
 
-def is_slave():
-    return '--slave' in sys.argv
+def is_worker():
+    return '--worker' in sys.argv
 ```
 
 ##### Event hooks
@@ -174,8 +174,8 @@ locust.events.locust_start_hatching += do_thing
 ```
 
 This will call `do_thing` exactly once when you press the start button. If
-you're running locust in master/slave mode, then
-`locust.events.locust_start_hatching` fires only on slaves, and
+you're running locust in master/worker mode, then
+`locust.events.locust_start_hatching` fires only on workers, and
 `locust.events.master_start_hatching` fires only on the master.
 
 3. *At user spawn time*: You can do per-user setup in two places. Locust will
