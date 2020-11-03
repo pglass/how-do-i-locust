@@ -294,33 +294,69 @@ locust` _prior_ to using `time.sleep`. (You can also call
 Monkey patching gevent is a must when you are using an external library that
 can't be modified to use `gevent.sleep`.
 
-##### Polling for things asynchronously
-You can use a similar pattern as above to poll for an active status. The only
-thing to watch out for here is having too many greenlets running in the
-background on a single box (you can lower the polling frequency or run in
-distributed mode to solve this):
+##### Asynchronous polling
+
+You can use a similar pattern as above to poll for a status. One thing to
+watch out for is having too many greenlets running in the background on a single
+machine (you can lower the polling frequency or run in distributed mode to
+help manage this).
+
+First, I added functions to report the result of asynchronous operations to Locust.
+These use the native [request_success](
+https://docs.locust.io/en/stable/api.html#locust.event.Events.request_success)
+and [request_failure](
+https://docs.locust.io/en/stable/api.html#locust.event.Events.request_failure)
+events.
 
 ```python
-def _do_async_thing_handler(self):
-    # using `with` prevents locust from making an entry in its report
-    with self.client.post('/things', catch_response=True) as post_resp:
-        id = post_resp.json()['id']
+def async_success(name, start_time, resp):
+    locust.events.request_success.fire(
+        request_type=resp.request.method,
+        name=name,
+        response_time=int((time.monotonic() - start_time) * 1000),
+        response_length=len(resp.content),
+    )
 
-        # Now poll for an ACTIVE status
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            r = self.client.get('/things/' + id)
-            if r.ok and r.json()['status'] == 'ACTIVE':
-                post_resp.success()
-                return
-            elif r.ok and r.json()['status'] == 'ERROR':
-                post_resp.failure("Saw ERROR status")
-                return
+def async_failure(name, start_time, resp, message):
+    locust.events.request_failure.fire(
+        request_type=resp.request.method,
+        name=name,
+        response_time=int((time.monotonic() - start_time) * 1000),
+        exception=Exception(message),
+    )
+```
 
-            # IMPORTANT: make sure you yield to other greenlets by using
-            # gevent.sleep. Otherwise, you'll block the world.
-            gevent.sleep(1)
-        post_resp.failure("Polling timed out")
+Then, I implemented polling logic in an async "handler" function and called
+the `async_success`/`async_failure` functions above when polling is complete.
+These calculate the total elapsed time for the async operation, and report
+the result to Locust. I also added the usual `@task` function to spawn the async
+handler function in the background.
+
+```python
+def _do_async_thing_handler(self, timeout=600):
+    post_resp = self.client.post('/things')
+    if not post_resp.ok:
+        return
+    id = post_resp.json()['id']
+
+    # Now poll for an ACTIVE status
+    start_time = time.monotonic()
+    end_time = start_time + timeout
+    while time.monotonic() < end_time:
+        r = self.client.get('/things/' + id)
+        if r.ok and r.json()['status'] == 'ACTIVE':
+            async_success('POST /things/ID - async', start_time, post_resp)
+            return
+        elif r.ok and r.json()['status'] == 'ERROR':
+            async_failure('POST /things/ID - async', start_time, post_resp,
+                          'Failed - saw ERROR status')
+            return
+
+        # IMPORTANT: Sleep must be monkey-patched by gevent (typical), or else
+        # use gevent.sleep to avoid blocking the world.
+        time.sleep(1)
+    async_failure('POST /things/ID - async', start_time, post_resp,
+                  'Failed - timed out after %s seconds' % timeout)
 
 @task
 def do_async_thing(self):
@@ -329,15 +365,15 @@ def do_async_thing(self):
 
 The key things here are:
 
-1. Spawning a new greenlet so your locust users don't block when running your
-tasks, so your request rate is unaffected.
-2. Using the `with` block to let us control the success condition
-3. Using gevent.sleep in your polling loop to avoid blocking the world
-4. Calling .success() or .failure() to mark the original request as a success
-or failure. Locust will then compute and store the duration from the time
-the request was made until the time the .success() function was called.
+1. Spawning a new greenlet in your `@task` function so that other Locust tasks
+are not blocked by the long-running polling loop. This ensures that the `do_async_thing`
+task is executed at a predictable (request) rate, that will not be affected by
+the time spent in the polling loop.
+2. Calling the `async_success`/`async_failure` functions to compute the duration
+until the async operation was finished. These used the `request_success`/`request_failure`
+event hooks to report the result to Locust, which is included in the request metrics.
 
-(There's another minor issue here... When you stop the test, any greenlets
-running in the background will continue running. I tracked my greenlets in a
-list and used one of locust's event hooks to kill them all when the test is
-stopped)
+(Another issue here: When I stop load generation, any greenlets running in the background
+will continue running - until the greenlets finish running, or until the process is
+terminated. I tracked my greenlets in a list and used an event hook to kill them all when
+the test is stopped.)
